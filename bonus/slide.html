@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sinh đề thi từ đề thật — Data Pipeline + Chatbot sinh đề</title>
+<style>
+  /* Bảng màu thân thiện máy chiếu: nền sáng, mực đậm, tương phản cao, font lớn */
+  :root{
+    --bg:#f4f6fb; --paper:#ffffff; --ink:#14213d; --muted:#475069; --line:#d4dae8;
+    --a:#0d9488;   /* teal đậm */
+    --b:#6d28d9;   /* tím đậm */
+    --c:#be123c;   /* đỏ đậm */
+    --d:#b45309;   /* cam đậm */
+    --soft-a:#e2f5f1; --soft-b:#efe8fd; --soft-c:#fde6ec; --soft-d:#fcefdd;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:"Segoe UI",system-ui,-apple-system,"Noto Sans",sans-serif;
+    display:grid;place-items:center;min-height:100vh;padding:20px;
+  }
+  .stage{width:1280px;max-width:100%}
+  .slide{
+    width:100%;aspect-ratio:16/9;background:var(--paper);
+    border:1px solid var(--line);border-radius:18px;
+    padding:52px 64px;box-shadow:0 18px 50px rgba(20,33,61,.14);
+    display:none;flex-direction:column;gap:22px;position:relative;overflow:hidden;
+  }
+  .slide.active{display:flex}
+  .kicker{font-size:16px;letter-spacing:.16em;text-transform:uppercase;color:var(--a);font-weight:800}
+  h1{font-size:46px;line-height:1.1;font-weight:800}
+  h1 .hl{color:var(--b)}
+  h2{font-size:34px;font-weight:800;line-height:1.15}
+  .lead{font-size:21px;color:var(--muted);line-height:1.5;max-width:62ch}
+  .pill{display:inline-block;font-size:15px;font-weight:800;color:#fff;background:var(--a);padding:7px 16px;border-radius:999px}
+  .pill.b{background:var(--b)} .pill.c{background:var(--c)} .pill.d{background:var(--d)}
+  ul{list-style:none;display:flex;flex-direction:column;gap:14px}
+  li{font-size:21px;line-height:1.4;display:flex;gap:14px;align-items:flex-start}
+  li .ic{flex:0 0 auto;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-size:16px;font-weight:800;color:#fff;background:var(--a)}
+  li b{color:var(--ink)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+  .card .h{font-size:19px;font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:9px}
+  .card .t{font-size:17px;color:var(--muted);line-height:1.45}
+  .card .t b{color:var(--ink)}
+  .badge{width:14px;height:14px;border-radius:4px;display:inline-block}
+  .ba{background:var(--a)} .bb{background:var(--b)} .bc{background:var(--c)} .bd{background:var(--d)}
+  /* pipeline flow */
+  .flow{display:flex;flex-direction:column;gap:14px;margin-top:4px}
+  .row{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap}
+  .node{background:var(--soft-a);border:2px solid var(--a);color:var(--ink);border-radius:12px;padding:12px 16px;font-size:18px;font-weight:800;display:flex;flex-direction:column;gap:3px;justify-content:center}
+  .node small{font-weight:600;color:var(--muted);font-size:14px}
+  .node.gate{background:var(--soft-c);border-color:var(--c)}
+  .node.gold{background:var(--soft-d);border-color:var(--d)}
+  .node.kg{background:var(--soft-b);border-color:var(--b)}
+  .node.plain{background:#eef1f8;border-color:var(--line)}
+  .arrow{align-self:center;font-size:26px;font-weight:800;color:var(--muted)}
+  .branch{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .loop{background:var(--soft-a);border:2px dashed var(--a);border-radius:14px;padding:18px 22px;font-size:19px;line-height:1.5}
+  .loop b{color:var(--a)}
+  /* footer / nav */
+  .ftr{margin-top:auto;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding-top:16px;color:var(--muted);font-size:15px}
+  .dots{display:flex;gap:8px}
+  .dots i{width:9px;height:9px;border-radius:50%;background:var(--line);cursor:pointer}
+  .dots i.on{background:var(--a);width:24px;border-radius:5px}
+  .nav{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 14px;box-shadow:0 8px 24px rgba(20,33,61,.12)}
+  .nav button{border:none;background:var(--ink);color:#fff;font-size:16px;font-weight:800;width:38px;height:38px;border-radius:50%;cursor:pointer}
+  .nav button:disabled{opacity:.3;cursor:default}
+  .nav .count{font-size:15px;font-weight:700;color:var(--muted);min-width:48px;text-align:center}
+  code{background:#eef1f8;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:.92em}
+  .two-col{display:grid;grid-template-columns:1.3fr 1fr;gap:26px;align-items:start}
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <!-- 1 — TITLE -->
+  <section class="slide active">
+    <div class="kicker">Lab 17 · Track 2 · Bonus</div>
+    <h1>Sinh đề thi từ <span class="hl">đề thật</span><br>Data Pipeline + Chatbot sinh đề</h1>
+    <p class="lead">Bóc đề ảnh / PDF / scan / Word thành ngân hàng đề có cấu trúc,
+      rồi một chatbot sinh đề mới — học tốt dần từ chính phản hồi của giáo viên.</p>
+    <div style="display:flex;gap:12px;margin-top:6px">
+      <span class="pill">Medallion ETL</span>
+      <span class="pill b">Agent flywheel</span>
+      <span class="pill c">Decontamination</span>
+      <span class="pill d">Point-in-time</span>
+    </div>
+    <div class="ftr"><span>Zero-key · DuckDB + Python</span><div class="dots"></div></div>
+  </section>
+
+  <!-- 2 — PROBLEM + CONSTRAINTS -->
+  <section class="slide">
+    <div class="kicker">Bài toán &amp; ràng buộc</div>
+    <h2>Đề thật ở mọi định dạng → đề mới đáng tin</h2>
+    <div class="two-col">
+      <ul>
+        <li><span class="ic">1</span><div><b>Đầu vào hỗn loạn:</b> ảnh chụp, PDF scan mờ, PDF số, Word — đầy công thức Toán/Lý/Hóa.</div></li>
+        <li><span class="ic">2</span><div><b>Chatbot sinh đề:</b> bám chuẩn kiến thức &amp; độ khó; giáo viên duyệt từng câu.</div></li>
+        <li><span class="ic">3</span><div><b>Vòng lặp:</b> phản hồi duyệt/loại trở thành dữ liệu fine-tune.</div></li>
+      </ul>
+      <div class="card" style="border-left:5px solid var(--c)">
+        <div class="h">⚠️ Ràng buộc sống còn</div>
+        <div class="t">
+          • <b>OCR tiếng Việt + LaTeX</b> cho công thức<br>
+          • <b>Chống lọt đề</b> — không trùng đề sắp thi<br>
+          • <b>Độ khó point-in-time</b> — không leak tương lai<br>
+          • <b>Bản quyền</b> — gắn nguồn từng câu<br>
+          • <b>Chi phí/trang</b> kiểm soát khi quét hàng vạn trang
+        </div>
+      </div>
+    </div>
+    <div class="ftr"><span>Mở rộng trực tiếp T1–T8 của Lab 17</span><div class="dots"></div></div>
+  </section>
+
+  <!-- 3 — ARCHITECTURE -->
+  <section class="slide">
+    <div class="kicker">Kiến trúc pipeline</div>
+    <h2>Unstructured → có cấu trúc → truy vấn được</h2>
+    <div class="flow">
+      <div class="row">
+        <div class="node">Ảnh / PDF / Word<small>đề thi thật</small></div>
+        <span class="arrow">→</span>
+        <div class="node plain">OCR LaTeX<small>text + công thức</small></div>
+        <span class="arrow">→</span>
+        <div class="node plain">Bronze<small>raw, append-only + nguồn</small></div>
+        <span class="arrow">→</span>
+        <div class="node gate">Gate chất lượng<small>câu hỏng → quarantine</small></div>
+      </div>
+      <div class="row" style="justify-content:center">
+        <div class="node plain" style="min-width:280px;text-align:center">Silver — câu hỏi có cấu trúc<small>{đề, đáp án, lời giải, môn, chương, độ khó} · dedup gần-trùng</small></div>
+      </div>
+      <div class="branch">
+        <div class="node gold">Gold<small>ngân hàng đề</small></div>
+        <div class="node kg">Knowledge Graph<small>môn → chương → kỹ năng → câu</small></div>
+        <div class="node">ASOF<small>độ khó point-in-time</small></div>
+      </div>
+    </div>
+    <div class="ftr"><span>Bronze giữ nguyên gốc → mọi tầng sau dựng lại được</span><div class="dots"></div></div>
+  </section>
+
+  <!-- 4 — FLYWHEEL -->
+  <section class="slide">
+    <div class="kicker">Trái tim: vòng lặp dữ liệu</div>
+    <h2>Chatbot sinh đề học từ chính giáo viên</h2>
+    <div class="loop">
+      🔁 <b>Flywheel:</b> chatbot sinh đề (trace <code>gen_ai.*</code>)
+      → giáo viên <b>duyệt / sửa / loại</b>
+      → cặp DPO <code>(prompt, chosen=duyệt, rejected=loại)</code>
+      → <b>decontaminate</b> ⟂ đề sắp thi
+      → fine-tune hằng tuần (Day 22) → chatbot tốt hơn → lặp lại.
+    </div>
+    <div class="grid3">
+      <div class="card"><div class="h"><span class="badge bb"></span>Trace → Bronze</div><div class="t">Cây span phẳng hóa, 1 dòng/span — hành vi chatbot thành dữ liệu truy vấn được.</div></div>
+      <div class="card"><div class="h"><span class="badge bc"></span>Chống lọt đề</div><div class="t">13-gram + embedding loại câu trùng/viết lại so với đề thật — <b>sai về phía an toàn</b>.</div></div>
+      <div class="card"><div class="h"><span class="badge bd"></span>Có người chốt</div><div class="t">Duyệt theo tuần trước khi train — dữ liệu giáo dục không để sai lan ra học sinh.</div></div>
+    </div>
+    <div class="ftr"><span>Day 13 sinh trace → <b style="color:var(--ink)">Day 17 biến thành dữ liệu</b> → Day 22 train</span><div class="dots"></div></div>
+  </section>
+
+  <!-- 5 — DECISIONS -->
+  <section class="slide">
+    <div class="kicker">Quyết định &amp; tradeoff</div>
+    <h2>Mỗi lựa chọn nêu rõ X vs Y</h2>
+    <div class="grid2">
+      <div class="card" style="border-left:5px solid var(--a)">
+        <div class="h"><span class="badge ba"></span>OCR: tự host hay API?</div>
+        <div class="t"><b>Lai</b> — tự host text Việt, gọi Mathpix <b>chỉ vùng công thức</b>. Cân chi phí ⟷ chất lượng; công thức sai 1 ký hiệu là hỏng cả câu.</div>
+      </div>
+      <div class="card" style="border-left:5px solid var(--b)">
+        <div class="h"><span class="badge bb"></span>Dedup câu hỏi?</div>
+        <div class="t"><b>Near-duplicate</b> (MinHash) — đổi số hay đảo đáp án A/B/C/D vẫn là trùng. Exact-hash để lọt rác.</div>
+      </div>
+      <div class="card" style="border-left:5px solid var(--c)">
+        <div class="h"><span class="badge bc"></span>Sinh đề: RAG hay free-form?</div>
+        <div class="t"><b>RAG bắt buộc</b> — mọi câu neo vào câu mẫu + node KG. Giảm ảo giác, đúng chương trình GDPT.</div>
+      </div>
+      <div class="card" style="border-left:5px solid var(--d)">
+        <div class="h"><span class="badge bd"></span>Độ khó câu hỏi?</div>
+        <div class="t"><b>ASOF point-in-time</b> — độ khó cập nhật sau mỗi kỳ thi; latest-value leak tương lai vào train.</div>
+      </div>
+    </div>
+    <div class="ftr"><span>Loại bỏ: nhét thẳng PDF vào LLM đa phương tiện → mất truy vết nguồn, không có gate, không chặn lọt đề</span><div class="dots"></div></div>
+  </section>
+
+  <!-- 6 — KEY INSIGHT -->
+  <section class="slide">
+    <div class="kicker">Điểm cốt lõi</div>
+    <h2>Failure-semantics: đặt ngưỡng lệch nhau <span style="color:var(--c)">có chủ đích</span></h2>
+    <div class="grid2">
+      <div class="card" style="background:var(--soft-a);border-color:var(--a)">
+        <div class="h">📥 Ingest đề</div>
+        <div class="t"><b>Cho phép bỏ sót.</b> Mất một câu OCR khó chỉ làm kho nhỏ đi — chấp nhận được.</div>
+      </div>
+      <div class="card" style="background:var(--soft-c);border-color:var(--c)">
+        <div class="h">🚫 Decontamination</div>
+        <div class="t"><b>Chặn quá tay.</b> Thà loại nhầm vài câu hợp lệ còn hơn để <b>lọt một câu trùng đề thật</b> — hệ quả không đảo ngược.</div>
+      </div>
+    </div>
+    <ul style="margin-top:6px">
+      <li><span class="ic" style="background:var(--b)">✓</span><div><b>Data Việt:</b> dấu tiếng Việt + ký hiệu toán trên bản scan mờ → tách nhánh OCR.</div></li>
+      <li><span class="ic" style="background:var(--d)">₫</span><div><b>Chi phí:</b> trả tiền API chỉ cho phần đáng — vùng công thức, không phải cả trang.</div></li>
+    </ul>
+    <div class="ftr"><span>Lab 17 — Data Pipeline Engineering</span><div class="dots"></div></div>
+  </section>
+
+</div>
+
+<div class="nav">
+  <button id="prev">‹</button>
+  <span class="count" id="count">1 / 6</span>
+  <button id="next">›</button>
+</div>
+
+<script>
+  const slides=[...document.querySelectorAll('.slide')];
+  let i=0;
+  function render(){
+    slides.forEach((s,k)=>s.classList.toggle('active',k===i));
+    document.getElementById('count').textContent=`${i+1} / ${slides.length}`;
+    document.getElementById('prev').disabled=i===0;
+    document.getElementById('next').disabled=i===slides.length-1;
+    document.querySelectorAll('.dots').forEach(d=>{
+      d.innerHTML=slides.map((_,k)=>`<i class="${k===i?'on':''}" data-k="${k}"></i>`).join('');
+    });
+  }
+  function go(n){ i=Math.max(0,Math.min(slides.length-1,n)); render(); }
+  document.getElementById('next').onclick=()=>go(i+1);
+  document.getElementById('prev').onclick=()=>go(i-1);
+  document.addEventListener('keydown',e=>{
+    if(['ArrowRight',' ','PageDown'].includes(e.key))go(i+1);
+    if(['ArrowLeft','PageUp'].includes(e.key))go(i-1);
+    if(e.key==='Home')go(0); if(e.key==='End')go(slides.length-1);
+    if(e.key==='f'||e.key==='F'){document.documentElement.requestFullscreen?.();}
+  });
+  document.addEventListener('click',e=>{ if(e.target.matches('.dots i'))go(+e.target.dataset.k); });
+  render();
+</script>
+</body>
+</html>

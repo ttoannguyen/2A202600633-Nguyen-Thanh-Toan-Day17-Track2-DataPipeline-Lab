@@ -19,4 +19,23 @@ Answer briefly, in your own words. This is graded on reasoning, not length.
    answers well that flat chunk retrieval (`embed.py`) would struggle with, and
    one where the graph is overkill.
 
-_Write your answers below._
+## Câu trả lời
+
+**1. Flywheel.** Hỏng âm thầm nhất là gán nhãn trong `flatten()`: `status`/`split`
+của span gốc. Lượt `error` bị gán nhầm `ok` → câu trả lời lỗi lọt vào `reference`
+eval *và* thành `chosen` DPO, đầu độc cả thước đo lẫn dữ liệu train, pipeline vẫn
+"xanh". Phát hiện bằng invariant: mỗi trace 1 span `depth=0`; eval/pair count khác
+0; không `chosen` nào mang `error.type`.
+
+**2. Decontamination.** Bỏ thì 2/3 pair (prompt "Can I return a widget…" và "What
+warranty…") vừa ở eval vừa được train → model học thuộc đáp án rồi mình chấm bằng
+chính prompt đó. Lời nói dối lộ ở **khoảng cách offline-vs-production**: điểm
+offline tăng giả nhưng holdout sạch không nhúc nhích.
+
+**3. Point-in-time.** Nguy hiểm nếu thiếu ASOF: `lifetime_spend` hay số chargeback
+90 ngày của user — lúc score phải dùng giá trị *tại thời điểm event*, không phải
+hiện tại (ASOF u100 = 50/120, naive rò rỉ 300 từ tương lai).
+
+**4. Graph vs vector.** KG thắng câu đa-hop "widget ship từ đâu?"
+(widget→accessory→hanoi, 2 fact ở 2 chunk — vector không bắc cầu). KG thừa cho
+tra cứu 1-fact "gadget bảo hành bao lâu?" — một chunk trả lời được, vector rẻ hơn.
